@@ -24,6 +24,7 @@ async function connect() {
         })
         log(img(), name, ` Approved permissions: `, JSON.stringify(permissions))
     } catch (error) {
+        console.error(error)
         log(img(), name, ' ', error.message)
     }
 }
