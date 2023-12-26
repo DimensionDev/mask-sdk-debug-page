@@ -1,4 +1,32 @@
 // @ts-check
+const textarea = document.getElementsByTagName('textarea')[0]
+textarea.setAttribute(
+    'placeholder',
+    JSON.stringify({
+        method: 'eth_chainId',
+        params: [],
+    })
+)
+textarea.addEventListener('keydown', async (event) => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey || event.altKey)) {
+        event.preventDefault()
+        const providerUUID = select.value
+        const wallet = wallets.get(providerUUID)
+        if (!wallet) return
+        const { info, provider } = wallet
+
+        const { name, img } = getNameAndImg(info.uuid)
+        const json = (0, eval)(`(${textarea.value})`)
+        log(img(), name, ` request(${JSON.stringify(json, undefined, 2)})`)
+        try {
+            const permissions = await provider.request(json)
+            log(img(), name, ` Result: `, JSON.stringify(permissions, undefined, 2))
+        } catch (error) {
+            console.error(error)
+            log(img(), name, ' ', error.message)
+        }
+    }
+})
 const logContainer = document.getElementById('log')
 const select = document.querySelector('select')
 function log(...content) {
@@ -22,7 +50,7 @@ async function connect() {
             method: 'wallet_requestPermissions',
             params: [{ eth_accounts: {} }],
         })
-        log(img(), name, ` Approved permissions: `, JSON.stringify(permissions))
+        log(img(), name, ` Approved permissions: `, JSON.stringify(permissions, undefined, 2))
     } catch (error) {
         console.error(error)
         log(img(), name, ' ', error.message)
@@ -52,6 +80,7 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
 
     log(img(), name, ` ${info.uuid} discovered.`)
 
+    globalThis.ethereum ??= provider
     const result = await provider.request({ method: 'wallet_getPermissions', params: [] })
     for (const permission of result) {
         if (permission.parentCapability === 'eth_accounts') {
