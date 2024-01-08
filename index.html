@@ -6,13 +6,34 @@
         <title>Document</title>
     </head>
     <body>
+        <p>
+            <select id="wallet"></select>
+        </p>
+        <p>
+            <md-filled-button id="connect" disabled onclick="connect()">Connect</md-filled-button>
+            <md-filled-button id="sign" disabled onclick="sign()">Sign message</md-filled-button>
+            <md-filled-button id="send_eth" disabled onclick="sendTransaction()">Send ETH</md-filled-button>
+            <md-outlined-button onclick="Mask.reload()">Reload Mask SDK (dev only)</md-outlined-button>
+        </p>
+        <p>
+            <md-filled-text-field
+                type="textarea"
+                label="Send JSON request"
+                rows="5"
+                cols="60"
+                id="json"
+                placeholder='{ "method": "eth_chainId", params: [] }'
+            >
+            </md-filled-text-field>
+            <md-outlined-button id="request" disabled onclick="send(document.getElementById('json').value)"
+                >Send request</md-outlined-button
+            >
+        </p>
         <p id="hint">Looking for Mask? Click the popup and click connect.</p>
-        <select id="wallet"></select>
-        <input id="connect" disabled type="button" value="&lt; Connect this wallet" onclick="connect()" />
-        <input type="button" value="Reload Mask SDK (dev only)" onclick="Mask.reload()" />
-        <br />
-        <textarea cols="60" rows="3"></textarea>
         <div id="log"></div>
-        <script src="./index.js"></script>
+        <script type="module" src="https://esm.sh/@web-comp/core@1.0.2"></script>
+        <script type="module" src="https://esm.sh/@web-comp/json-viewer@1.0.2"></script>
+        <script type="module" async src="https://esm.sh/@material/web@1.1.1/all.js"></script>
+        <script type="module" src="./index.js"></script>
     </body>
 </html>

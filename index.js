@@ -1,41 +1,96 @@
-// @ts-check
-const textarea = document.getElementsByTagName('textarea')[0]
-textarea.setAttribute(
-    'placeholder',
-    JSON.stringify({
-        method: 'eth_chainId',
-        params: [],
-    })
-)
-textarea.addEventListener('keydown', async (event) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey || event.altKey)) {
-        event.preventDefault()
-        const providerUUID = select.value
-        const wallet = wallets.get(providerUUID)
-        if (!wallet) return
-        const { info, provider } = wallet
+import { default as hexer } from './hex.js'
 
-        const { name, img } = getNameAndImg(info.uuid)
-        const json = (0, eval)(`(${textarea.value})`)
-        log(img(), name, ` request(${JSON.stringify(json, undefined, 2)})`)
-        try {
-            const permissions = await provider.request(json)
-            log(img(), name, ` Result: `, JSON.stringify(permissions, undefined, 2))
-        } catch (error) {
-            console.error(error)
-            log(img(), name, ' ', error.message)
-        }
-    }
-})
-const logContainer = document.getElementById('log')
+// @ts-check
 const select = document.querySelector('select')
-function log(...content) {
-    const container = document.createElement('div')
-    container.append(new Date().toLocaleTimeString(), ' ', ...content)
-    logContainer.insertBefore(container, logContainer.children[0])
-}
+
 /** @type {Map<string, WindowEventMap['eip6963:announceProvider']['detail']>} */
 const wallets = new Map()
+
+document.getElementById('json').addEventListener('keydown', async (event) => {
+    const e = /** @type {HTMLElement & {value: string}} */ (event.currentTarget)
+    if (event.key === 'ArrowRight' && e.value === '') {
+        e.value = e.getAttribute('placeholder')
+        event.preventDefault()
+    }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey || event.altKey)) {
+        event.preventDefault()
+        send(e.value)
+    }
+})
+
+/**
+ * @param {object | string} json
+ */
+function send(json) {
+    if (typeof json === 'string') json = (0, eval)(`(${json})`)
+    const { info, provider } = wallets.get(select.value)
+    const { name, img } = getNameAndImg(info.uuid)
+    log(img(), name, ` request:`, json, ' => ', provider.request(json))
+}
+
+/**
+ * @param {unknown[]} content
+ */
+function log(...content) {
+    const container = document.createElement('div')
+    container.append(new Date().toLocaleTimeString(), ' ')
+    for (const e of content) {
+        if (e instanceof Promise) {
+            const span = document.createElement('span')
+            const progress = document.createElement('md-circular-progress')
+            progress.attributeStyleMap.set('--md-circular-progress-size', '32px')
+            progress.setAttribute('indeterminate', 'true')
+            span.append(progress)
+            container.append(span)
+
+            e.then(
+                (result) => span.append(renderText(result)),
+                (error) => span.append(String(error.message))
+            ).finally(() => progress.remove())
+        } else if (typeof e === 'string' || e instanceof Node) container.append(e)
+        else container.append(renderText(e))
+    }
+    document.getElementById('log').insertBefore(container, document.getElementById('log').children[0])
+}
+
+async function sign() {
+    const message = hexer(prompt('Enter message to sign'))
+    const { info, provider } = wallets.get(select.value)
+    const { name, img } = getNameAndImg(info.uuid)
+    const [account] = await provider.request({
+        method: 'eth_accounts',
+    })
+    log(
+        img(),
+        name,
+        ` sign message:`,
+        ' => ',
+        provider.request({
+            method: 'personal_sign',
+            params: [message, account],
+        })
+    )
+}
+
+async function sendTransaction() {
+    const to = prompt('Enter target to send', '0x16528fa4c634626393B931C98C0068421b50cF5E')
+    const value = prompt('Enter how much ETH to send (hex)', '0xfffffffffffffff')
+    const { provider } = wallets.get(select.value)
+    const [account] = await provider.request({
+        method: 'eth_accounts',
+    })
+    console.log(account)
+    send({
+        method: 'eth_sendTransaction',
+        params: [
+            {
+                from: account,
+                to,
+                value,
+            },
+        ],
+    })
+}
 
 async function connect() {
     const providerUUID = select.value
@@ -44,17 +99,15 @@ async function connect() {
     const { info, provider } = wallet
 
     const { name, img } = getNameAndImg(info.uuid)
-    log(img(), name, ` request wallet_requestPermissions(eth_accounts)`)
-    try {
-        const permissions = await provider.request({
+    log(
+        img(),
+        name,
+        ` wallet_requestPermissions(eth_accounts) =>`,
+        provider.request({
             method: 'wallet_requestPermissions',
             params: [{ eth_accounts: {} }],
         })
-        log(img(), name, ` Approved permissions: `, JSON.stringify(permissions, undefined, 2))
-    } catch (error) {
-        console.error(error)
-        log(img(), name, ' ', error.message)
-    }
+    )
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -71,10 +124,10 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
     const option = document.createElement('option')
     option.innerText = name
     option.value = info.uuid
-    select?.appendChild(option)
+    select.appendChild(option)
     option.selected = true
 
-    document.getElementById('connect').removeAttribute('disabled')
+    for (const e of document.querySelectorAll('[disabled]')) e.removeAttribute('disabled')
 
     if (info.uuid === 'f113ee3f-49e3-4576-8f77-c3991d82af41') document.getElementById('hint')?.remove()
 
@@ -84,12 +137,15 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
     const result = await provider.request({ method: 'wallet_getPermissions', params: [] })
     for (const permission of result) {
         if (permission.parentCapability === 'eth_accounts') {
-            log(img(), name, ` Approved permissions: `, JSON.stringify(permission))
+            log(img(), name, ` wallet_getPermissions: `, permission)
         }
     }
     if (!result.length) log(img(), name)
 })
 
+/**
+ * @param {string} uuid
+ */
 function getNameAndImg(uuid) {
     const info = wallets.get(uuid).info
     const img = document.createElement('img')
@@ -98,3 +154,20 @@ function getNameAndImg(uuid) {
     const name = `${info.name} (${info.rdns})`
     return { img: () => img.cloneNode(), name }
 }
+
+/**
+ * @param {unknown} json
+ */
+function renderText(json) {
+    if (typeof json === 'string') return json
+    const e = document.createElement('wc-json-viewer')
+    // @ts-ignore
+    e.setConfig({ data: json })
+    return e
+}
+Object.assign(window, {
+    send,
+    sign,
+    connect,
+    sendTransaction,
+})
